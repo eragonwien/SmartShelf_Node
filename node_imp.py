@@ -309,7 +309,8 @@ class UDPProzessor(threading.Thread):
             print("REBOOT : " ,self.message)
             if self.message == self.host :
                 print("same host")
-                print(os.system("script.sh"))
+                os.system("sudo chmod +x script.sh")
+                os.system("sh script.sh")
         else:
             if is_json(self.message):
                 package = json.loads(self.message)
