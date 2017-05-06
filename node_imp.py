@@ -7,7 +7,7 @@ import random
 import math
 import select
 import sys
-
+import os
 # --------------------DATA----------------------------------------------------------------------------------------------
 
 def create_new_pins(pinfile:str):
@@ -305,6 +305,11 @@ class UDPProzessor(threading.Thread):
             package = json.dumps(sonic_list, indent=1)
             tcp_send(target_host, self.port, package, self.timeout, self.reconnect)
             print("STOCK SENT")
+        elif self.message[:5] == "RBOOT" :
+            print("REBOOT : " ,self.message)
+            if self.message == self.host :
+                print("same host")
+                print(os.system("script.sh"))
         else:
             if is_json(self.message):
                 package = json.loads(self.message)
