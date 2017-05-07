@@ -306,10 +306,12 @@ class UDPProzessor(threading.Thread):
             tcp_send(target_host, self.port, package, self.timeout, self.reconnect)
             print("STOCK SENT")
         elif self.message[:5] == "RBOOT" :
-            print("REBOOT : " ,self.message)
-            if self.message[5:] == self.host :
-                os.system("sudo chmod +x script.sh")
-                os.system("sh script.sh")
+            #target_host = self.message[5:]
+            #results = [self.host]
+            #package = json.dumps(results)
+            #tcp_send(target_host, self.port, package, self.timeout, self.reconnect)
+            os.system("sudo chmod +x script.sh")
+            os.system("sh script.sh")
         elif self.message[:5] == "TESTS":
             target_host = self.message[5:]
             # set test result here
