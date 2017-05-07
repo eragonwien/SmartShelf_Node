@@ -1,3 +1,6 @@
 #!/bin/sh
-#sudo reboot now
-echo "HELLOOOOOOOOOOOO"
+git fetch
+git reset --hard
+sleep 2
+sudo reboot now
+

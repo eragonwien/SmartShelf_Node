@@ -308,7 +308,6 @@ class UDPProzessor(threading.Thread):
         elif self.message[:5] == "RBOOT" :
             print("REBOOT : " ,self.message)
             if self.message[5:] == self.host :
-                print("same host")
                 os.system("sudo chmod +x script.sh")
                 os.system("sh script.sh")
         else:
