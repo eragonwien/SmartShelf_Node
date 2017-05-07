@@ -1,2 +1,3 @@
 #!/bin/sh
-sudo reboot now
+#sudo reboot now
+echo "HELLOOOOOOOOOOOO"
