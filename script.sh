@@ -1,6 +1,4 @@
 #!/bin/sh
 git fetch
-git reset --hard
-sleep 2
+git reset --hard && echo "updated"
 sudo reboot now
-
