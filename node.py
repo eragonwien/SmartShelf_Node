@@ -9,6 +9,7 @@ REGISTER_PORT = 51212
 ALIVE_PORT = 51213
 STOCK_PORT = 51214
 CONFIG_PORT = 51215
+UPDATE_PORT = 51216
 BUFFERSIZE = 2048
 MAX_CLIENT = 10
 DATA_PATH = "data.txt"
@@ -34,7 +35,9 @@ alice_receiver = node_imp.UDPReceiver(CONNECTION_PATH, DATA_PATH, PIN_PATH, SONI
 threads_list.append(alice_receiver)
 stock_receiver = node_imp.UDPReceiver(CONNECTION_PATH, DATA_PATH, PIN_PATH, SONIC_PATH, STOCK_PORT)
 threads_list.append(stock_receiver)
-update_receiver = node_imp.UDPReceiver(CONNECTION_PATH, DATA_PATH, PIN_PATH, SONIC_PATH, CONFIG_PORT)
+config_receiver = node_imp.UDPReceiver(CONNECTION_PATH, DATA_PATH, PIN_PATH, SONIC_PATH, CONFIG_PORT)
+threads_list.append(config_receiver)
+update_receiver = node_imp.UDPReceiver(CONNECTION_PATH, DATA_PATH, PIN_PATH, SONIC_PATH, UPDATE_PORT)
 threads_list.append(update_receiver)
 
 while True:
