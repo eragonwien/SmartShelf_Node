@@ -1,4 +1,3 @@
 #!/bin/sh
-git fetch
-git reset --hard && echo "updated"
+git pull && echo "updated"
 sudo reboot now
