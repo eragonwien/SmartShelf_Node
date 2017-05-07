@@ -9,6 +9,7 @@ import select
 import sys
 import os
 # --------------------DATA----------------------------------------------------------------------------------------------
+VERSION = '1.2'
 
 def create_new_pins(pinfile:str):
     print("PIN MAKER")
@@ -318,7 +319,7 @@ class UDPProzessor(threading.Thread):
         elif self.message[:5] == "TESTS":
             target_host = self.message[5:]
             # set test result here
-            results = [self.host,"SHUTDOWN APPLIED"]
+            results = [self.host, VERSION]
             package = json.dumps(results)
             tcp_send(target_host, self.port, package, self.timeout, self.reconnect)
             print("STOCK SENT")
