@@ -11,41 +11,6 @@ import os
 # --------------------DATA----------------------------------------------------------------------------------------------
 VERSION = '1.2'
 
-def create_new_pins(pinfile:str):
-    print("PIN MAKER")
-    pin_list = []
-    while True:
-        print("Type close to cancel creating pin")
-        command = input("New Pin ? yes / no ")
-        if  command == "no":
-            break
-        elif command == "close":
-            sys.exit()
-        elif command == "yes" :
-            pin_in = input("PIN IN ? ")
-            pin_out = input("PIN OUT ? ")
-            pin_set = [pin_in, pin_out]
-            pin_list.append(pin_set)
-        else:
-            print("Input has to be either yes or no ")
-    set_obj_in_file(pin_list, pinfile)
-
-
-def create_connection_data(connection_file, host, port, buffersize, max_client, timeout, reconnect,
-                           alive_intervall):
-    connection_data = {'host': host, 'port': port, 'buffersize': buffersize, 'max_client': max_client,
-                       'timeout': timeout, 'reconnect': reconnect, 'alive_intervall': alive_intervall}
-    set_obj_in_file(connection_data, connection_file)
-
-
-def create_default_sonic_file(stockfile: str, pinfile: str):
-    pin_list = get_obj_from_file(pinfile)
-    stock_list = []
-    for i in range(len(pin_list)):
-        stock_list.append(0)
-    set_obj_in_file(stock_list, stockfile)
-
-
 def is_file_exist(filepath):
     return os.path.isfile(filepath)
 
@@ -71,6 +36,51 @@ def get_obj_from_file(filepath: str):
 def set_obj_in_file(obj, filepath: str):
     with open(filepath, 'w') as file:
         file.write(json.dumps(obj, indent=1))
+
+
+def create_new_pins(pinfile:str):
+    print("PIN MAKER")
+    pin_list = []
+    while True:
+        print("Type close to cancel creating pin")
+        command = input("New Pin ? yes / no ")
+        if  command == "no":
+            break
+        elif command == "close":
+            sys.exit()
+        elif command == "yes" :
+            pin_in = input("PIN IN ? ")
+            pin_out = input("PIN OUT ? ")
+            pin_set = [pin_in, pin_out]
+            pin_list.append(pin_set)
+        else:
+            print("Input has to be either yes or no ")
+    set_obj_in_file(pin_list, pinfile)
+
+
+def create_data_from_pinfile(pinfile:str, datafile:str, node_id:str):
+    pin_list = get_obj_from_file(pinfile)
+    sensor_list = []
+    for pin_dual in pin_list:
+        sensor = {"in": pin_dual[0], "out": pin_dual[1], "status": "offline", "item_width": 0, "shelf_width": 0}
+        sensor_list.append(sensor)
+    node = {"id": node_id, "sensors": sensor_list, "status": "online"}
+    set_obj_in_file(node, datafile)
+
+def create_connection_data(connection_file, host, port, buffersize, max_client, timeout, reconnect,
+                           alive_intervall):
+    connection_data = {'host': host, 'port': port, 'buffersize': buffersize, 'max_client': max_client,
+                       'timeout': timeout, 'reconnect': reconnect, 'alive_intervall': alive_intervall}
+    set_obj_in_file(connection_data, connection_file)
+
+
+def create_default_sonic_file(stockfile: str, pinfile: str):
+    pin_list = get_obj_from_file(pinfile)
+    stock_list = []
+    for i in range(len(pin_list)):
+        stock_list.append(0)
+    set_obj_in_file(stock_list, stockfile)
+
 
 
 # --------------------TCP-----------------------------------------------------------------------------------------------
@@ -202,6 +212,16 @@ def get_host_ip() -> str:
 
 # --------------------NODE SPECIFIC-------------------------------------------------------------------------------------
 
+# this func create new node with default infomation
+def create_new_default_node(id: str, pin_list: list, datapath: str) -> dict:
+    sensor_list = []
+    for pin_dual in pin_list:
+        sensor = {"in": pin_dual[0], "out": pin_dual[1], "status": "offline", "item_width": 0, "shelf_width": 0}
+        sensor_list.append(sensor)
+    node = {"id": id, "sensors": sensor_list, "status": "online"}
+    return node
+
+
 def get_data_from_center(connect_file, data_file, pin_file):
     # broad cast ip over network
     connect_data = get_obj_from_file(connect_file)
@@ -230,6 +250,17 @@ def get_data_from_center(connect_file, data_file, pin_file):
     data = get_obj_from_file(data_file)
     print(data)
     return True
+
+
+def register_self_to_network(connect_file, data_file):
+    # broad cast ip over network
+    connect_data = get_obj_from_file(connect_file)
+    my_host = connect_data["host"]
+    port = connect_data["port"]
+    message = [my_host, get_obj_from_file(data_file)]
+    broadcast_message(port, json.dumps(message, indent=1))
+    return True
+
 
 
 def filter_registry(node_id: str, registry_list: list) -> list:
@@ -297,6 +328,10 @@ class UDPProzessor(threading.Thread):
         if self.message[:5] == "ALIVE":
             target_host = self.message[5:]
             tcp_send(target_host, self.port, self.host, self.timeout, self.reconnect)
+        elif self.message[:5] == "DATAS":
+            target_host = self.message[5:]
+            package = [self.host, get_obj_from_file(self.data_file)]
+            tcp_send(target_host, self.port, json.dumps(package), self.timeout, self.reconnect)
         elif self.message[:5] == "STOCK":
             target_host = self.message[5:]
             # get a list of measured value

@@ -26,7 +26,9 @@ node_imp.create_connection_data(CONNECTION_PATH, HOST, REGISTER_PORT, BUFFERSIZE
 if not node_imp.is_file_exist(PIN_PATH):
     print("No Data file found. Create new one with pin maker")
     node_imp.create_new_pins(PIN_PATH)
-node_imp.get_data_from_center(CONNECTION_PATH,DATA_PATH, PIN_PATH)
+if not node_imp.is_file_exist(DATA_PATH):
+    node_imp.create_data_from_pinfile(PIN_PATH, DATA_PATH, node_id=HOST)
+node_imp.register_self_to_network(CONNECTION_PATH,DATA_PATH)
 node_imp.create_default_sonic_file(SONIC_PATH, PIN_PATH)
 # run Sonic at start
 pin_list = node_imp.get_obj_from_file(PIN_PATH)
