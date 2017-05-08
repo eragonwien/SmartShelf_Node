@@ -8,8 +8,10 @@ import math
 import select
 import sys
 import os
+
 # --------------------DATA----------------------------------------------------------------------------------------------
-VERSION = '1.2.3'
+VERSION = '1.2.3a'
+
 
 def is_file_exist(filepath):
     return os.path.isfile(filepath)
@@ -38,17 +40,17 @@ def set_obj_in_file(obj, filepath: str):
         file.write(json.dumps(obj, indent=1))
 
 
-def create_new_pins(pinfile:str):
+def create_new_pins(pinfile: str):
     print("PIN MAKER")
     pin_list = []
     while True:
         print("Type close to cancel creating pin")
         command = input("New Pin ? yes / no ")
-        if  command == "no":
+        if command == "no":
             break
         elif command == "close":
             sys.exit()
-        elif command == "yes" :
+        elif command == "yes":
             pin_in = input("PIN IN ? ")
             pin_out = input("PIN OUT ? ")
             pin_set = [pin_in, pin_out]
@@ -58,7 +60,7 @@ def create_new_pins(pinfile:str):
     set_obj_in_file(pin_list, pinfile)
 
 
-def create_data_from_pinfile(pinfile:str, datafile:str, node_id:str):
+def create_data_from_pinfile(pinfile: str, datafile: str, node_id: str):
     pin_list = get_obj_from_file(pinfile)
     sensor_list = []
     for pin_dual in pin_list:
@@ -66,6 +68,7 @@ def create_data_from_pinfile(pinfile:str, datafile:str, node_id:str):
         sensor_list.append(sensor)
     node = {"id": node_id, "sensors": sensor_list, "status": "online"}
     set_obj_in_file(node, datafile)
+
 
 def create_connection_data(connection_file, host, port, buffersize, max_client, timeout, reconnect,
                            alive_intervall):
@@ -80,7 +83,6 @@ def create_default_sonic_file(stockfile: str, pinfile: str):
     for i in range(len(pin_list)):
         stock_list.append(0)
     set_obj_in_file(stock_list, stockfile)
-
 
 
 # --------------------TCP-----------------------------------------------------------------------------------------------
@@ -108,10 +110,10 @@ def tcp_select_receive(host, port, buffersize, timeout, max_client):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind((host, port))
     server.listen(max_client)
-    input = [server]
+    server_input = [server]
     running = 1
     while running:
-        inputready, outputready, exceptready = select.select(input, [], [], timeout)
+        inputready, outputready, exceptready = select.select(server_input, [], [], timeout)
         if not (inputready or outputready or exceptready):
             server.close()
             break
@@ -119,7 +121,7 @@ def tcp_select_receive(host, port, buffersize, timeout, max_client):
             if s == server:
                 # handle the server socket
                 client, address = server.accept()
-                input.append(client)
+                server_input.append(client)
             else:
                 # handle all other sockets
                 data = s.recv(buffersize)
@@ -128,11 +130,12 @@ def tcp_select_receive(host, port, buffersize, timeout, max_client):
                     results.append(message)
                 else:
                     s.close()
-                    input.remove(s)
+                    server_input.remove(s)
     return results
 
+
 # check internet connection
-def has_internet()->bool:
+def has_internet() -> bool:
     port = 53
     host = '8.8.8.8'
     timeout = 3
@@ -144,6 +147,8 @@ def has_internet()->bool:
         return True
     except socket.timeout:
         return False
+
+
 # --------------------UDP-----------------------------------------------------------------------------------------------
 def broadcast_message(port, message):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -156,7 +161,7 @@ def broadcast_message(port, message):
 
 # --------------------SONIC---------------------------------------------------------------------------------------------
 def get_sonic_value(trigger: int, echo: int) -> int:
-    return math.floor(random.uniform(echo, trigger))
+    return round(random.uniform(echo, trigger), 0)
 
 
 # this thread calculates sonic value from sensor
@@ -186,16 +191,15 @@ def save_sonic_data(pin_file: str, sonic_file: str):
     set_obj_in_file(results, sonic_file)
 
 
-def get_list_of_stocks(sonic_file: str,data_file:str) -> list:
+def get_list_of_stocks(data_file: str) -> list:
     results = []
-    sonic_list = get_obj_from_file(sonic_file)
     node = get_obj_from_file(data_file)
     sensor_list = node["sensors"]
     for i in range(len(sensor_list)):
         sensor = sensor_list[i]
         sonic_value = get_sonic_value(int(sensor["in"]), int(sensor["out"]))
         amount = 0
-        if int(sensor["item_width"]) > 0 :
+        if int(sensor["item_width"]) > 0:
             amount = math.floor((int(sensor["shelf_width"]) - sonic_value) / int(sensor["item_width"]))
         results.append(amount)
     return results
@@ -260,7 +264,6 @@ def register_self_to_network(connect_file, data_file):
     message = [my_host, get_obj_from_file(data_file)]
     broadcast_message(port, json.dumps(message, indent=1))
     return True
-
 
 
 def filter_registry(node_id: str, registry_list: list) -> list:
@@ -336,12 +339,12 @@ class UDPProzessor(threading.Thread):
             target_host = self.message[5:]
             # get a list of measured value
             sonic_list = [self.host]
-            save_sonic_data(self.pin_file,self.sonic_file)
-            sonic_list += get_list_of_stocks(self.sonic_file, self.data_file)
+            save_sonic_data(self.pin_file, self.sonic_file)
+            sonic_list += get_list_of_stocks(self.data_file)
             package = json.dumps(sonic_list, indent=1)
             tcp_send(target_host, self.port, package, self.timeout, self.reconnect)
             print("STOCK SENT")
-        elif self.message[:5] == "RBOOT" :
+        elif self.message[:5] == "RBOOT":
             target_host = self.message[5:]
             results = [self.host]
             package = json.dumps(results)
@@ -391,7 +394,8 @@ class UDPReceiver(threading.Thread):
             s.bind(('', self.port))
             try:
                 message = s.recvfrom(self.buffersize)
-                UDPProzessor(message[0].decode(), self.connect_file, self.data_file, self.pin_file,self.sonic_file,self.port)
+                UDPProzessor(message[0].decode(), self.connect_file, self.data_file, self.pin_file, self.sonic_file,
+                             self.port)
             except socket.error:
                 s.close()
 
