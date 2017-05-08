@@ -9,7 +9,7 @@ import select
 import sys
 import os
 # --------------------DATA----------------------------------------------------------------------------------------------
-VERSION = '1.2'
+VERSION = '1.2.1'
 
 def is_file_exist(filepath):
     return os.path.isfile(filepath)
