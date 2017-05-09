@@ -10,7 +10,7 @@ import sys
 import os
 
 # --------------------DATA----------------------------------------------------------------------------------------------
-VERSION = '1.2.3a'
+VERSION = '1.2.3b'
 
 
 def is_file_exist(filepath):
@@ -140,8 +140,8 @@ def tcp_select_receive(host, port, buffersize, timeout, max_client):
 
 # check internet connection
 def has_internet() -> bool:
-    port = 53
-    host = '8.8.8.8'
+    port = 80
+    host = "www.google.com"
     timeout = 3
     try:
         sock = socket.socket()
