@@ -61,12 +61,16 @@ def create_new_pins(pinfile: str):
 
 
 def create_data_from_pinfile(pinfile: str, datafile: str, node_id: str):
-    pin_list = get_obj_from_file(pinfile)
-    sensor_list = []
-    for pin_dual in pin_list:
-        sensor = {"in": pin_dual[0], "out": pin_dual[1], "status": "offline", "item_width": 0, "shelf_width": 0}
-        sensor_list.append(sensor)
-    node = {"id": node_id, "sensors": sensor_list, "status": "online"}
+    if not is_file_exist(datafile):
+        pin_list = get_obj_from_file(pinfile)
+        sensor_list = []
+        for pin_dual in pin_list:
+            sensor = {"in": pin_dual[0], "out": pin_dual[1], "status": "offline", "item_width": 0, "shelf_width": 0}
+            sensor_list.append(sensor)
+        node = {"id": node_id, "sensors": sensor_list, "status": "online"}
+    else:
+        node = get_obj_from_file(datafile)
+        node["id"] = node_id
     set_obj_in_file(node, datafile)
 
 

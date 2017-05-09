@@ -32,8 +32,7 @@ if not node_imp.is_file_exist(PIN_PATH):
     node_imp.create_new_pins(PIN_PATH)
 
 # look for database
-if not node_imp.is_file_exist(DATA_PATH):
-    node_imp.create_data_from_pinfile(PIN_PATH, DATA_PATH, node_id=HOST)
+node_imp.create_data_from_pinfile(PIN_PATH, DATA_PATH, node_id=HOST)
 
 # register itself to the network
 node_imp.register_self_to_network(CONNECTION_PATH,DATA_PATH)
