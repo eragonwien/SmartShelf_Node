@@ -65,13 +65,10 @@ def create_data_from_pinfile(pinfile: str, datafile: str, node_id: str):
         pin_list = get_obj_from_file(pinfile)
         sensor_list = []
         for pin_dual in pin_list:
-            sensor = {"in": pin_dual[0], "out": pin_dual[1], "status": "offline", "item_width": 0, "shelf_width": 0}
+            sensor = {"in": pin_dual[0], "out": pin_dual[1], "item_width":0, "shelf_width": 0}
             sensor_list.append(sensor)
-        node = {"id": node_id, "sensors": sensor_list, "status": "online"}
-    else:
-        node = get_obj_from_file(datafile)
-        node["id"] = node_id
-    set_obj_in_file(node, datafile)
+        node = sensor_list
+        set_obj_in_file(node, datafile)
 
 
 def create_connection_data(connection_file, host, port, buffersize, max_client, timeout, reconnect,
@@ -184,8 +181,7 @@ class SonicThread(threading.Thread):
         self.sensor_index = int(sensor_index)
         self.results = results
         self.data_file = data_file
-        node = get_obj_from_file(data_file)
-        sensor_list = node["sensors"]
+        sensor_list = get_obj_from_file(data_file)
         self.sensor = sensor_list[sensor_index]
         self.sensor_in = self.sensor["in"]
         self.sensor_out = self.sensor["out"]
@@ -217,176 +213,20 @@ def get_host_ip() -> str:
 def create_new_default_node(id: str, pin_list: list, datapath: str) -> dict:
     sensor_list = []
     for pin_dual in pin_list:
-        sensor = {"in": pin_dual[0], "out": pin_dual[1], "status": "offline", "item_width": 0, "shelf_width": 0}
+        sensor = {"in": pin_dual[0], "out": pin_dual[1], "item_width": 0, "shelf_width": 0}
         sensor_list.append(sensor)
-    node = {"id": id, "sensors": sensor_list, "status": "online"}
+    node = sensor_list
     return node
 
-
-def get_data_from_center(connect_file, data_file, pin_file):
-    # broad cast ip over network
-    connect_data = get_obj_from_file(connect_file)
-    my_host = connect_data["host"]
-    port = connect_data["port"]
-    buffersize = connect_data["buffersize"]
-    timeout = connect_data["timeout"]
-    max_client = connect_data["max_client"]
-    message = [my_host, get_obj_from_file(pin_file)]
-    # broadcast and receive until there is a respond
-    answer_list = []
-    while not answer_list:
-        broadcast_message(port, json.dumps(message, indent=1))
-        # wait for confirmation per tcp
-        # add the first valid one in data
-        answer_list = tcp_select_receive(my_host, port, buffersize, timeout, max_client)
-    # filter the answer,
-    valid_registry = filter_registry(my_host, answer_list)
-    # save the first valid one
-    package = json.loads(valid_registry)
-    for i in range(len(package)):
-        if i == 0:
-            set_obj_in_file(package[0], data_file)
-            # if i == 1 : set_obj_in_file(package[1],connect_file)
-
-    data = get_obj_from_file(data_file)
-    print(data)
-    return True
-
-
-def register_self_to_network(connect_file, data_file):
-    # broad cast ip over network
-    connect_data = get_obj_from_file(connect_file)
-    my_host = connect_data["host"]
-    port = connect_data["port"]
-    message = [my_host, get_obj_from_file(data_file)]
-    broadcast_message(port, json.dumps(message, indent=1))
-    return True
-
-
-def filter_registry(node_id: str, registry_list: list) -> list:
-    # get the least ok one
-    valid_registry = []
-    priority_registry = []
-    for registry in registry_list:
-        if is_json(registry):
-            package = json.loads(registry)
-            if isinstance(package, list) and isinstance(package[0], dict):
-                if not valid_registry:
-                    valid_registry = registry
-                node = package[0]
-                if node["id"] == node_id and node["sensors"]:
-                    valid_registry = registry
-                    # registry with priority
-                    if "priority" in node:
-                        priority_registry = registry
-    if priority_registry:
-        return priority_registry
-    return valid_registry
-
 def replace_sensor(sensor_index:int, new_sensor:dict, data_file:str):
-    data = get_obj_from_file(data_file)
-    sensor_list = data["sensors"]
+    sensor_list = get_obj_from_file(data_file)
     sensor = sensor_list[sensor_index]
     for key, item in sensor.items():
         if key in new_sensor:
             sensor[key] = new_sensor[key]
-    set_obj_in_file(data,data_file)
+    set_obj_in_file(sensor_list,data_file)
 
 # --------------------------THREAD---------------------------------------------------------------------------------------
-
-class UDPProzessor(threading.Thread):
-    def __init__(self, message, connect_file, data_file, pin_file, sonic_file, port):
-        threading.Thread.__init__(self)
-        self.connect_file = connect_file
-        self.data_file = data_file
-        self.pin_file = pin_file
-        self.sonic_file = sonic_file
-        self.message = message
-        connection_data = get_obj_from_file(connect_file)
-        self.host = connection_data["host"]
-        self.port = port
-        self.buffersize = connection_data["buffersize"]
-        self.timeout = connection_data["timeout"]
-        self.reconnect = connection_data["reconnect"]
-        self.terminated = False
-        self.daemon = True
-        self.start()
-
-    def run(self):
-        print("Receive :", str(self.port), " : ", self.message)
-        if self.message[:5] == "ALIVE":
-            target_host = self.message[5:]
-            tcp_send(target_host, self.port, self.host, self.timeout, self.reconnect)
-        elif self.message[:5] == "DATAS":
-            target_host = self.message[5:]
-            package = [self.host, get_obj_from_file(self.data_file)]
-            tcp_send(target_host, self.port, json.dumps(package), self.timeout, self.reconnect)
-        elif self.message[:5] == "STOCK":
-            target_host = self.message[5:]
-            # get a list of measured value
-            sonic_list = [self.host]
-            save_sonic_data(self.pin_file, self.sonic_file)
-            sonic_list += get_list_of_stocks(self.data_file)
-            package = json.dumps(sonic_list, indent=1)
-            tcp_send(target_host, self.port, package, self.timeout, self.reconnect)
-            print("STOCK SENT")
-        elif self.message[:5] == "RBOOT":
-            target_host = self.message[5:]
-            results = [self.host]
-            package = json.dumps(results)
-            tcp_send(target_host, self.port, package, self.timeout, self.reconnect)
-            time.sleep(3)
-            os.system("sudo chmod +x script.sh")
-            os.system("sh script.sh")
-        elif self.message[:5] == "SHUTD":
-            os.system('sudo shutdown -h now')
-        elif self.message[:5] == "TESTS":
-            target_host = self.message[5:]
-            # set test result here
-            results = [self.host, VERSION]
-            package = json.dumps(results)
-            tcp_send(target_host, self.port, package, self.timeout, self.reconnect)
-            print("STOCK SENT")
-        else:
-            if is_json(self.message):
-                package = json.loads(self.message)
-                if package[0] == self.host and package[1]:
-                    node = get_obj_from_file(self.data_file)
-                    node["sensors"] = package[1]
-                    set_obj_in_file(node, self.data_file)
-
-
-# this thread receives all incoming udp messages from a given port
-# it checks the incoming message and init a respond
-class UDPReceiver(threading.Thread):
-    def __init__(self, connect_file, data_file, pin_file, sonic_file, port):
-        threading.Thread.__init__(self)
-        self.connect_file = connect_file
-        self.data_file = data_file
-        self.pin_file = pin_file
-        self.sonic_file = sonic_file
-        connection_data = get_obj_from_file(connect_file)
-        self.host = connection_data["host"]
-        self.port = port
-        self.buffersize = connection_data["buffersize"]
-        self.terminated = False
-        self.daemon = True
-        self.start()
-
-    def run(self):
-        while not self.terminated:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-            s.bind(('', self.port))
-            try:
-                message = s.recvfrom(self.buffersize)
-                UDPProzessor(message[0].decode(), self.connect_file, self.data_file, self.pin_file, self.sonic_file,
-                             self.port)
-            except socket.error:
-                s.close()
-
-    def set_terminate(self):
-        self.terminated = True
 
 
 class NodeProcessor(threading.Thread):
@@ -405,8 +245,7 @@ class NodeProcessor(threading.Thread):
             tcp_send(self.target, connection_data["port"], "ALIVEY" + connection_data["host"],
                      connection_data["timeout"], connection_data["reconnect"])
         elif self.command == "STOCK?":
-            node = get_obj_from_file(self.data_file)
-            sensor_list = node["sensors"]
+            sensor_list = get_obj_from_file(self.data_file)
             results = [0 for i in range(len(sensor_list))]
             sensor_pool = [ "timeout" for i in range(len(sensor_list))]
             for i in range(len(sensor_list)):
@@ -424,8 +263,7 @@ class NodeProcessor(threading.Thread):
         elif self.command[:6] == "SENSOR":
             if self.command[6:] == connection_data["host"]:
                 answer = []
-                node = get_obj_from_file(self.data_file)
-                sensor_list = node["sensors"]
+                sensor_list = get_obj_from_file(self.data_file)
                 for sensor in sensor_list:
                     item = {"item_width":sensor["item_width"] , "shelf_width":sensor["shelf_width"]}
                     answer.append(item)
