@@ -242,7 +242,7 @@ class NodeProcessor(threading.Thread):
     def run(self):
         connection_data = get_obj_from_file(self.connection_file)
         if self.command == "ALIVE?":
-            tcp_send(self.target, connection_data["a_port"], "ALIVEY" + connection_data["host"],
+            tcp_send(self.target, connection_data["a_port"], connection_data["host"],
                      connection_data["timeout"], connection_data["reconnect"])
         elif self.command == "STOCK?":
             sensor_list = get_obj_from_file(self.data_file)
