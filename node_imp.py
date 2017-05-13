@@ -71,9 +71,9 @@ def create_data_from_pinfile(pinfile: str, datafile: str, node_id: str):
         set_obj_in_file(node, datafile)
 
 
-def create_connection_data(connection_file, host, port, buffersize, max_client, timeout, reconnect,
+def create_connection_data(connection_file, host, port, a_port, buffersize, max_client, timeout, reconnect,
                            alive_intervall):
-    connection_data = {'host': host, 'port': port, 'buffersize': buffersize, 'max_client': max_client,
+    connection_data = {'host': host, 'port': port,'a_port': a_port, 'buffersize': buffersize, 'max_client': max_client,
                        'timeout': timeout, 'reconnect': reconnect, 'alive_intervall': alive_intervall}
     set_obj_in_file(connection_data, connection_file)
 
@@ -242,7 +242,7 @@ class NodeProcessor(threading.Thread):
     def run(self):
         connection_data = get_obj_from_file(self.connection_file)
         if self.command == "ALIVE?":
-            tcp_send(self.target, connection_data["port"], "ALIVEY" + connection_data["host"],
+            tcp_send(self.target, connection_data["a_port"], "ALIVEY" + connection_data["host"],
                      connection_data["timeout"], connection_data["reconnect"])
         elif self.command == "STOCK?":
             sensor_list = get_obj_from_file(self.data_file)
@@ -256,18 +256,31 @@ class NodeProcessor(threading.Thread):
             # sends results
             message = json.dumps([connection_data["host"], results])
             tcp_send(self.target, connection_data["port"], message, connection_data["timeout"], connection_data["reconnect"])
-
+        # get node info
         elif self.command == "DATA?":
             tcp_send(self.target, connection_data["port"], "DATAY" + connection_data["host"],
                      connection_data["timeout"], connection_data["reconnect"])
-        elif self.command[:6] == "SENSOR":
-            if self.command[6:] == connection_data["host"]:
-                answer = []
-                sensor_list = get_obj_from_file(self.data_file)
-                for sensor in sensor_list:
-                    item = {"item_width":sensor["item_width"] , "shelf_width":sensor["shelf_width"]}
-                    answer.append(item)
-                tcp_send(self.target, connection_data["port"], json.dumps(answer), connection_data["timeout"], connection_data["reconnect"])
+        # get sensor info
+        elif self.command[:6] == "SENSOR" and self.command[6:] == connection_data["host"]:
+            answer = []
+            sensor_list = get_obj_from_file(self.data_file)
+            for sensor in sensor_list:
+                item = {"item_width":sensor["item_width"] , "shelf_width":sensor["shelf_width"]}
+                answer.append(item)
+            tcp_send(self.target, connection_data["port"], json.dumps(answer), connection_data["timeout"], connection_data["reconnect"])
+        # shutdown
+        elif self.command[:6] == "SHUTD?" and self.command[6:] == connection_data["host"]:
+            tcp_send(self.target, connection_data["port"], "SHUTDY" + connection_data["host"],
+                     connection_data["timeout"], connection_data["reconnect"])
+            print("Shutting down...")
+            os.system("sudo shutdown now")
+        # update and reboot
+        elif self.command == "UPDATE":
+            tcp_send(self.target, connection_data["port"], "UPDATE" + connection_data["host"],
+                     connection_data["timeout"], connection_data["reconnect"])
+            print("Updating...")
+            print("Shutting down...")
+            os.system("sudo shutdown -r now")
         # handles JSON Message
         elif is_json(self.command):
             package = json.loads(self.command)
@@ -282,15 +295,18 @@ class NodeProcessor(threading.Thread):
 def udp_select_receive(connection_file, data_file):
     connection_data = get_obj_from_file(connection_file)
     server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    server2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server.bind(('', connection_data["port"]))
-    server_input = [server]
+    server2.bind(('', connection_data["a_port"]))
+    server_input = [server, server2]
     while True:
         inputready, outputready, exceptready = select.select(server_input, [], [])
         if not (inputready or outputready or exceptready):
             server.close()
             break
         for s in inputready:
-            if s == server:
+            if s == server or s == server2:
                 data, addr = s.recvfrom(connection_data["buffersize"])
                 print("Source :", addr[0], " Messsage :", data.decode())
                 NodeProcessor(data.decode(), addr[0], connection_file, data_file)
+

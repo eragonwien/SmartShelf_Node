@@ -5,11 +5,8 @@ import time
 
 while not node_imp.has_internet() : time.sleep(1)
 HOST = node_imp.get_host_ip()
-REGISTER_PORT = 51212
-ALIVE_PORT = 51213
-STOCK_PORT = 51214
-CONFIG_PORT = 51215
-UPDATE_PORT = 51216
+PORT = 51212
+A_PORT = 51213
 BUFFERSIZE = 2048
 MAX_CLIENT = 10
 DATA_PATH = "data.txt"
@@ -23,7 +20,7 @@ print("NODE Nr.",HOST)
 threads_list = []
 
 # create connection data
-node_imp.create_connection_data(CONNECTION_PATH, HOST, REGISTER_PORT, BUFFERSIZE, MAX_CLIENT, TIMEOUT, RECONNECTION_TIMES, ALIVE_INTERVALL)
+node_imp.create_connection_data(CONNECTION_PATH, HOST, PORT,A_PORT, BUFFERSIZE, MAX_CLIENT, TIMEOUT, RECONNECTION_TIMES, ALIVE_INTERVALL)
 '''
 # turn on updater
 #update_receiver = node_imp.UDPReceiver(CONNECTION_PATH, DATA_PATH, PIN_PATH, SONIC_PATH, UPDATE_PORT)
