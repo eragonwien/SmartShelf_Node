@@ -21,34 +21,40 @@ TIMEOUT = 3
 ALIVE_INTERVALL = 10
 print("NODE Nr.",HOST)
 threads_list = []
+
 # create connection data
 node_imp.create_connection_data(CONNECTION_PATH, HOST, REGISTER_PORT, BUFFERSIZE, MAX_CLIENT, TIMEOUT, RECONNECTION_TIMES, ALIVE_INTERVALL)
+'''
 # turn on updater
-update_receiver = node_imp.UDPReceiver(CONNECTION_PATH, DATA_PATH, PIN_PATH, SONIC_PATH, UPDATE_PORT)
-threads_list.append(update_receiver)
+#update_receiver = node_imp.UDPReceiver(CONNECTION_PATH, DATA_PATH, PIN_PATH, SONIC_PATH, UPDATE_PORT)
+#threads_list.append(update_receiver)
 # look for pin settings in directory
 if not node_imp.is_file_exist(PIN_PATH):
-    print("No Data file found. Create new one with pin maker")
-    node_imp.create_new_pins(PIN_PATH)
+    print("No Data file found. System exits")
+    sys.exit()
+    #node_imp.create_new_pins(PIN_PATH)
 
 # look for database
 node_imp.create_data_from_pinfile(PIN_PATH, DATA_PATH, node_id=HOST)
 
 # register itself to the network
-node_imp.register_self_to_network(CONNECTION_PATH,DATA_PATH)
+#node_imp.register_self_to_network(CONNECTION_PATH,DATA_PATH)
 # create default file containing stock value
-node_imp.create_default_sonic_file(SONIC_PATH, PIN_PATH)
+#node_imp.create_default_sonic_file(SONIC_PATH, PIN_PATH)
 # run Sonic at start
-pin_list = node_imp.get_obj_from_file(PIN_PATH)
+#pin_list = node_imp.get_obj_from_file(PIN_PATH)
 #udp receiver
 alice_receiver = node_imp.UDPReceiver(CONNECTION_PATH, DATA_PATH, PIN_PATH, SONIC_PATH, ALIVE_PORT)
 threads_list.append(alice_receiver)
 stock_receiver = node_imp.UDPReceiver(CONNECTION_PATH, DATA_PATH, PIN_PATH, SONIC_PATH, STOCK_PORT)
-threads_list.append(stock_receiver)
-config_receiver = node_imp.UDPReceiver(CONNECTION_PATH, DATA_PATH, PIN_PATH, SONIC_PATH, CONFIG_PORT)
-threads_list.append(config_receiver)
+#threads_list.append(stock_receiver)
+#config_receiver = node_imp.UDPReceiver(CONNECTION_PATH, DATA_PATH, PIN_PATH, SONIC_PATH, CONFIG_PORT)
+#threads_list.append(config_receiver)
+'''
+# look for database
+node_imp.create_data_from_pinfile(PIN_PATH, DATA_PATH, node_id=HOST)
 
-
+node_imp.udp_select_receive(CONNECTION_PATH, DATA_PATH)
 while True:
     try: time.sleep(10)
     except :

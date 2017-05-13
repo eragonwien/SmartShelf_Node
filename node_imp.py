@@ -168,45 +168,38 @@ def get_sonic_value(trigger: int, echo: int) -> int:
     return round(random.uniform(echo, trigger), 0)
 
 
+def calculate_stock_from_distance(distance: int, item_width: int, shelf_width: int):
+    try:
+        if item_width <= 0:
+            return 0
+        return round((shelf_width - distance) / item_width)
+    except ArithmeticError:
+        return None
+
+
 # this thread calculates sonic value from sensor
 class SonicThread(threading.Thread):
-    def __init__(self, sensor_index: int, results: list, pin_file: str):
+    def __init__(self, sensor_index: int, results: list, data_file: str):
         threading.Thread.__init__(self)
         self.sensor_index = int(sensor_index)
         self.results = results
-        self.pin_file = pin_file
-        pin_data = get_obj_from_file(pin_file)
-        [self.sensor_in, self.sensor_out] = pin_data[self.sensor_index]
+        self.data_file = data_file
+        node = get_obj_from_file(data_file)
+        sensor_list = node["sensors"]
+        self.sensor = sensor_list[sensor_index]
+        self.sensor_in = self.sensor["in"]
+        self.sensor_out = self.sensor["out"]
         self.daemon = 1
         self.terminated = 0
         self.start()
 
     def run(self):
         sonic_value = get_sonic_value(int(self.sensor_in), int(self.sensor_out))
-        self.results[self.sensor_index] = sonic_value
-
-
-def save_sonic_data(pin_file: str, sonic_file: str):
-    pin_list = get_obj_from_file(pin_file)
-    results = [0 for i in range(len(pin_list))]
-    for i in range(len(pin_list)):
-        SonicThread(i, results, pin_file)
-    while len(results) < len(pin_list): pass
-    set_obj_in_file(results, sonic_file)
-
-
-def get_list_of_stocks(data_file: str) -> list:
-    results = []
-    node = get_obj_from_file(data_file)
-    sensor_list = node["sensors"]
-    for i in range(len(sensor_list)):
-        sensor = sensor_list[i]
-        sonic_value = get_sonic_value(int(sensor["in"]), int(sensor["out"]))
-        amount = 0
-        if int(sensor["item_width"]) > 0:
-            amount = math.floor((int(sensor["shelf_width"]) - sonic_value) / int(sensor["item_width"]))
-        results.append(amount)
-    return results
+        result = calculate_stock_from_distance(sonic_value, int(self.sensor["item_width"]), int(self.sensor["shelf_width"]))
+        if result:
+            self.results[self.sensor_index] = result
+        else:
+            self.results[self.sensor_index] = "Arithmetic Error"
 
 
 # --------------------ETC-----------------------------------------------------------------------------------------------
@@ -290,27 +283,16 @@ def filter_registry(node_id: str, registry_list: list) -> list:
         return priority_registry
     return valid_registry
 
+def replace_sensor(sensor_index:int, new_sensor:dict, data_file:str):
+    data = get_obj_from_file(data_file)
+    sensor_list = data["sensors"]
+    sensor = sensor_list[sensor_index]
+    for key, item in sensor.items():
+        if key in new_sensor:
+            sensor[key] = new_sensor[key]
+    set_obj_in_file(data,data_file)
 
 # --------------------------THREAD---------------------------------------------------------------------------------------
-class NodeUpdater(threading.Thread):
-    def __init__(self, connect_file, data_file):
-        threading.Thread.__init__(self)
-        self.connect_file = connect_file
-        self.data_file = data_file
-        self.terminated = False
-        self.daemon = True
-        self.start()
-
-    def run(self):
-        while not self.terminated:
-            get_data_from_center(self.connect_file, self.data_file)
-            connection_data = get_obj_from_file(self.connect_file)
-            intervall = connection_data["alive_intervall"]
-            time.sleep(intervall)
-
-    def set_terminated(self):
-        self.terminated = True
-
 
 class UDPProzessor(threading.Thread):
     def __init__(self, message, connect_file, data_file, pin_file, sonic_file, port):
@@ -405,3 +387,72 @@ class UDPReceiver(threading.Thread):
 
     def set_terminate(self):
         self.terminated = True
+
+
+class NodeProcessor(threading.Thread):
+    def __init__(self, command, target, connection_file, data_file):
+        threading.Thread.__init__(self)
+        self.command = command
+        self.target = target
+        self.connection_file = connection_file
+        self.data_file = data_file
+        self.daemon = 1
+        self.start()
+
+    def run(self):
+        connection_data = get_obj_from_file(self.connection_file)
+        if self.command == "ALIVE?":
+            tcp_send(self.target, connection_data["port"], "ALIVEY" + connection_data["host"],
+                     connection_data["timeout"], connection_data["reconnect"])
+        elif self.command == "STOCK?":
+            node = get_obj_from_file(self.data_file)
+            sensor_list = node["sensors"]
+            results = [0 for i in range(len(sensor_list))]
+            sensor_pool = [ "timeout" for i in range(len(sensor_list))]
+            for i in range(len(sensor_list)):
+                sensor_pool.append(SonicThread(i, results, self.data_file))
+            start = time.time()
+            wait_time = 2 # waits 2 seconds
+            while time.time() < (start + wait_time): pass
+            # sends results
+            message = json.dumps([connection_data["host"], results])
+            tcp_send(self.target, connection_data["port"], message, connection_data["timeout"], connection_data["reconnect"])
+
+        elif self.command == "DATA?":
+            tcp_send(self.target, connection_data["port"], "DATAY" + connection_data["host"],
+                     connection_data["timeout"], connection_data["reconnect"])
+        elif self.command[:6] == "SENSOR":
+            if self.command[6:] == connection_data["host"]:
+                answer = []
+                node = get_obj_from_file(self.data_file)
+                sensor_list = node["sensors"]
+                for sensor in sensor_list:
+                    item = {"item_width":sensor["item_width"] , "shelf_width":sensor["shelf_width"]}
+                    answer.append(item)
+                tcp_send(self.target, connection_data["port"], json.dumps(answer), connection_data["timeout"], connection_data["reconnect"])
+        # handles JSON Message
+        elif is_json(self.command):
+            package = json.loads(self.command)
+            if package[0] == "CHANGE":
+                (node_id, sensor_index) = package[1]
+                if node_id == connection_data["host"]:
+                    replace_sensor(int(sensor_index),package[2],self.data_file)
+                    tcp_send(self.target, connection_data["port"],"OK"+connection_data["host"],connection_data["timeout"], connection_data["reconnect"])
+
+
+# this func receives multiple UDP message then fowards it to processor
+def udp_select_receive(connection_file, data_file):
+    connection_data = get_obj_from_file(connection_file)
+    server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    server.bind(('', connection_data["port"]))
+    server_input = [server]
+    while True:
+        inputready, outputready, exceptready = select.select(server_input, [], [])
+        if not (inputready or outputready or exceptready):
+            server.close()
+            break
+        for s in inputready:
+            if s == server:
+                data, addr = s.recvfrom(connection_data["buffersize"])
+                print("Source :", addr[0], " Messsage :", data.decode())
+                NodeProcessor(data.decode(), addr[0], connection_file, data_file)
