@@ -4,7 +4,6 @@ import json
 import threading
 import time
 import random
-import math
 import select
 import sys
 import os
@@ -13,8 +12,8 @@ import os
 VERSION = '1.2.3b'
 
 
-def is_file_exist(filepath):
-    return os.path.isfile(filepath)
+def is_file_exist(file_path):
+    return os.path.isfile(file_path)
 
 
 def is_json(obj) -> bool:
@@ -26,21 +25,21 @@ def is_json(obj) -> bool:
 
 
 # this function return an object from file
-def get_obj_from_file(filepath: str):
+def get_obj_from_file(file_path: str):
     file = None
-    if os.path.isfile(filepath):
-        with open(filepath, 'r') as file:
+    if os.path.isfile(file_path):
+        with open(file_path, 'r') as file:
             file = json.loads(file.read())
     return file
 
 
 # this function overwrite a file with a new object
-def set_obj_in_file(obj, filepath: str):
-    with open(filepath, 'w') as file:
+def set_obj_in_file(obj, file_path: str):
+    with open(file_path, 'w') as file:
         file.write(json.dumps(obj, indent=1))
 
 
-def create_new_pins(pinfile: str):
+def create_new_pins(pin_file: str):
     print("PIN MAKER")
     pin_list = []
     while True:
@@ -57,33 +56,25 @@ def create_new_pins(pinfile: str):
             pin_list.append(pin_set)
         else:
             print("Input has to be either yes or no ")
-    set_obj_in_file(pin_list, pinfile)
+    set_obj_in_file(pin_list, pin_file)
 
 
-def create_data_from_pinfile(pinfile: str, datafile: str, node_id: str):
+def create_data_from_pin_file(pin_file: str, datafile: str):
     if not is_file_exist(datafile):
-        pin_list = get_obj_from_file(pinfile)
+        pin_list = get_obj_from_file(pin_file)
         sensor_list = []
         for pin_dual in pin_list:
-            sensor = {"in": pin_dual[0], "out": pin_dual[1], "item_width":0, "shelf_width": 0}
+            sensor = {"in": pin_dual[0], "out": pin_dual[1], "item_width": 0, "shelf_width": 0}
             sensor_list.append(sensor)
         node = sensor_list
         set_obj_in_file(node, datafile)
 
 
 def create_connection_data(connection_file, host, port, a_port, buffersize, max_client, timeout, reconnect,
-                           alive_intervall):
-    connection_data = {'host': host, 'port': port,'a_port': a_port, 'buffersize': buffersize, 'max_client': max_client,
-                       'timeout': timeout, 'reconnect': reconnect, 'alive_intervall': alive_intervall}
+                           alive_interval):
+    connection_data = {'host': host, 'port': port, 'a_port': a_port, 'buffersize': buffersize, 'max_client': max_client,
+                       'timeout': timeout, 'reconnect': reconnect, 'alive_interval': alive_interval}
     set_obj_in_file(connection_data, connection_file)
-
-
-def create_default_sonic_file(stockfile: str, pinfile: str):
-    pin_list = get_obj_from_file(pinfile)
-    stock_list = []
-    for i in range(len(pin_list)):
-        stock_list.append(0)
-    set_obj_in_file(stock_list, stockfile)
 
 
 # --------------------TCP-----------------------------------------------------------------------------------------------
@@ -191,7 +182,8 @@ class SonicThread(threading.Thread):
 
     def run(self):
         sonic_value = get_sonic_value(int(self.sensor_in), int(self.sensor_out))
-        result = calculate_stock_from_distance(sonic_value, int(self.sensor["item_width"]), int(self.sensor["shelf_width"]))
+        result = calculate_stock_from_distance(sonic_value, int(self.sensor["item_width"]),
+                                               int(self.sensor["shelf_width"]))
         if result:
             self.results[self.sensor_index] = result
         else:
@@ -209,22 +201,14 @@ def get_host_ip() -> str:
 
 # --------------------NODE SPECIFIC-------------------------------------------------------------------------------------
 
-# this func create new node with default infomation
-def create_new_default_node(id: str, pin_list: list, datapath: str) -> dict:
-    sensor_list = []
-    for pin_dual in pin_list:
-        sensor = {"in": pin_dual[0], "out": pin_dual[1], "item_width": 0, "shelf_width": 0}
-        sensor_list.append(sensor)
-    node = sensor_list
-    return node
 
-def replace_sensor(sensor_index:int, new_sensor:dict, data_file:str):
+def replace_sensor(sensor_index: int, new_sensor: dict, data_file: str):
     sensor_list = get_obj_from_file(data_file)
     sensor = sensor_list[sensor_index]
     for key, item in sensor.items():
         if key in new_sensor:
             sensor[key] = new_sensor[key]
-    set_obj_in_file(sensor_list,data_file)
+    set_obj_in_file(sensor_list, data_file)
 
 # --------------------------THREAD---------------------------------------------------------------------------------------
 
@@ -246,16 +230,17 @@ class NodeProcessor(threading.Thread):
                      connection_data["timeout"], connection_data["reconnect"])
         elif self.command == "STOCK?":
             sensor_list = get_obj_from_file(self.data_file)
-            results = [0 for i in range(len(sensor_list))]
-            sensor_pool = [ "timeout" for i in range(len(sensor_list))]
+            results = ["Timeout" for i in range(len(sensor_list))]
             for i in range(len(sensor_list)):
-                sensor_pool.append(SonicThread(i, results, self.data_file))
+                SonicThread(i, results, self.data_file)
             start = time.time()
-            wait_time = 2 # waits 2 seconds
-            while time.time() < (start + wait_time): pass
+            wait_time = 2  # waits 2 seconds
+            while time.time() < (start + wait_time):
+                pass
             # sends results
             message = json.dumps([connection_data["host"], results])
-            tcp_send(self.target, connection_data["port"], message, connection_data["timeout"], connection_data["reconnect"])
+            tcp_send(self.target, connection_data["port"], message, connection_data["timeout"],
+                     connection_data["reconnect"])
         # get node info
         elif self.command == "DATA?":
             tcp_send(self.target, connection_data["port"], "DATAY" + connection_data["host"],
@@ -265,9 +250,10 @@ class NodeProcessor(threading.Thread):
             answer = []
             sensor_list = get_obj_from_file(self.data_file)
             for sensor in sensor_list:
-                item = {"item_width":sensor["item_width"] , "shelf_width":sensor["shelf_width"]}
+                item = {"item_width": sensor["item_width"], "shelf_width": sensor["shelf_width"]}
                 answer.append(item)
-            tcp_send(self.target, connection_data["port"], json.dumps(answer), connection_data["timeout"], connection_data["reconnect"])
+            tcp_send(self.target, connection_data["port"], json.dumps(answer), connection_data["timeout"],
+                     connection_data["reconnect"])
         # shutdown
         elif self.command[:6] == "SHUTD?" and self.command[6:] == connection_data["host"]:
             tcp_send(self.target, connection_data["port"], "SHUTDY" + connection_data["host"],
@@ -287,8 +273,9 @@ class NodeProcessor(threading.Thread):
             if package[0] == "CHANGE":
                 (node_id, sensor_index) = package[1]
                 if node_id == connection_data["host"]:
-                    replace_sensor(int(sensor_index),package[2],self.data_file)
-                    tcp_send(self.target, connection_data["port"],"OK"+connection_data["host"],connection_data["timeout"], connection_data["reconnect"])
+                    replace_sensor(int(sensor_index), package[2], self.data_file)
+                    tcp_send(self.target, connection_data["port"], "OK" + connection_data["host"],
+                             connection_data["timeout"], connection_data["reconnect"])
 
 
 # this func receives multiple UDP message then fowards it to processor
@@ -296,17 +283,18 @@ def udp_select_receive(connection_file, data_file):
     connection_data = get_obj_from_file(connection_file)
     server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    server.setblocking(0)
+    server2.setblocking(0)
     server.bind(('', connection_data["port"]))
     server2.bind(('', connection_data["a_port"]))
     server_input = [server, server2]
     while True:
-        inputready, outputready, exceptready = select.select(server_input, [], [])
-        if not (inputready or outputready or exceptready):
+        input_ready, output_ready, except_ready = select.select(server_input, [], [])
+        if not (input_ready or output_ready or except_ready):
             server.close()
             break
-        for s in inputready:
+        for s in input_ready:
             if s == server or s == server2:
-                data, addr = s.recvfrom(connection_data["buffersize"])
-                print("Source :", addr[0], " Messsage :", data.decode())
-                NodeProcessor(data.decode(), addr[0], connection_file, data_file)
-
+                data, address = s.recvfrom(connection_data["buffersize"])
+                print("Source :", address[0], " Message :", data.decode())
+                NodeProcessor(data.decode(), address[0], connection_file, data_file)
