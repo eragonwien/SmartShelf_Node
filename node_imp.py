@@ -7,9 +7,11 @@ import random
 import select
 import sys
 import os
-
+import zipfile
 # --------------------DATA----------------------------------------------------------------------------------------------
 VERSION = '1.2.3b'
+UPDATES_PATH = ''
+UPDATES_FILENAME = 'updates.zip'
 
 
 def is_file_exist(file_path):
@@ -77,6 +79,9 @@ def create_connection_data(connection_file, host, port, a_port, buffersize, max_
     set_obj_in_file(connection_data, connection_file)
 
 
+def extract_zip(file_path: str, zip_name: str):
+    with zipfile.ZipFile(zip_name, 'r') as target_zip:
+        target_zip.extractall(file_path)
 # --------------------TCP-----------------------------------------------------------------------------------------------
 
 
@@ -96,23 +101,45 @@ def tcp_send(host, port, message: str, timeout, reconnect) -> bool:
             return False
 
 
+# this func receives single files as tcp message
+def tcp_file_receive(file_path: str, host: str, port, buffersize, timeout, max_client):
+    tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcp.bind((host, port))
+    tcp.settimeout(timeout)
+    tcp.listen(max_client)
+    with open(file_path, 'wb') as received_file:
+        try:
+            while True:
+                connection, address = tcp.accept()
+                data = connection.recv(buffersize)
+                while data:
+                    received_file.write(data)
+                    data = connection.recv(buffersize)
+            tcp.close()
+        except socket.timeout:
+            tcp.close()
+        except socket.error:
+            tcp.close()
+
+
 # this func receive multiple TCP message
 def tcp_select_receive(host, port, buffersize, timeout, max_client):
     results = []
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind((host, port))
-    server.listen(max_client)
-    server_input = [server]
+    tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcp.setblocking(0)
+    tcp.bind((host, port))
+    tcp.listen(max_client)
+    server_input = [tcp]
     running = 1
     while running:
-        inputready, outputready, exceptready = select.select(server_input, [], [], timeout)
-        if not (inputready or outputready or exceptready):
-            server.close()
+        input_ready, output_ready, except_ready = select.select(server_input, [], [], timeout)
+        if not (input_ready or output_ready or except_ready):
+            tcp.close()
             break
-        for s in inputready:
-            if s == server:
+        for s in input_ready:
+            if s == tcp:
                 # handle the server socket
-                client, address = server.accept()
+                client, address = tcp.accept()
                 server_input.append(client)
             else:
                 # handle all other sockets
@@ -262,11 +289,19 @@ class NodeProcessor(threading.Thread):
             os.system("sudo shutdown now")
         # update and reboot
         elif self.command == "UPDATE":
-            tcp_send(self.target, connection_data["port"], "UPDATE" + connection_data["host"],
+            print("Updates Notification received")
+            tcp_send(self.target, connection_data["port"], connection_data["host"],
                      connection_data["timeout"], connection_data["reconnect"])
+            print("Confirmation sent")
+            time.sleep(5)
+            tcp_file_receive(UPDATES_FILENAME, connection_data["host"], connection_data["port"],
+                             connection_data["buffersize"], connection_data["timeout"], connection_data["max_client"])
+            extract_zip(UPDATES_PATH, UPDATES_FILENAME)
+            print("Updates received")
             print("Updating...")
+            os.system('sudo cp ./updates/ .')
             print("Shutting down...")
-            os.system("sudo shutdown -r now")
+            #os.system("sudo shutdown -r now")
         # handles JSON Message
         elif is_json(self.command):
             package = json.loads(self.command)
