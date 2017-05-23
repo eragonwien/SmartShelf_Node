@@ -252,10 +252,10 @@ class NodeProcessor(threading.Thread):
 
     def run(self):
         connection_data = get_obj_from_file(self.connection_file)
-        if self.command[:5] == "ALIVE?":
+        if self.command[:6] == "ALIVE?":
             tcp_send(self.command[5:], connection_data["a_port"], connection_data["host"],
                      connection_data["timeout"], connection_data["reconnect"])
-        elif self.command[:5] == "STOCK?":
+        elif self.command[:6] == "STOCK?":
             sensor_list = get_obj_from_file(self.data_file)
             results = ["Timeout" for i in range(len(sensor_list))]
             for i in range(len(sensor_list)):
@@ -266,7 +266,7 @@ class NodeProcessor(threading.Thread):
                 pass
             # sends results
             message = json.dumps([connection_data["host"], results])
-            tcp_send(self.command[5:], connection_data["port"], message, connection_data["timeout"],
+            tcp_send(self.command[6:], connection_data["port"], message, connection_data["timeout"],
                      connection_data["reconnect"])
         # get node info
         elif self.command[:5] == "DATA?":
@@ -304,6 +304,7 @@ class NodeProcessor(threading.Thread):
             os.system("sudo shutdown -r now")
         # test
         elif self.command[:4] == "TEST":
+            print("TEST")
             tcp_send(self.command[4:], connection_data["port"], json.dumps([connection_data["host"], VERSION]),
                      connection_data["timeout"], connection_data["reconnect"])
         # handles JSON Message
