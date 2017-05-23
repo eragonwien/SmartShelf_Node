@@ -252,10 +252,10 @@ class NodeProcessor(threading.Thread):
 
     def run(self):
         connection_data = get_obj_from_file(self.connection_file)
-        if self.command == "ALIVE?":
-            tcp_send(self.target, connection_data["a_port"], connection_data["host"],
+        if self.command[:5] == "ALIVE?":
+            tcp_send(self.command[5:], connection_data["a_port"], connection_data["host"],
                      connection_data["timeout"], connection_data["reconnect"])
-        elif self.command == "STOCK?":
+        elif self.command[:5] == "STOCK?":
             sensor_list = get_obj_from_file(self.data_file)
             results = ["Timeout" for i in range(len(sensor_list))]
             for i in range(len(sensor_list)):
@@ -266,11 +266,11 @@ class NodeProcessor(threading.Thread):
                 pass
             # sends results
             message = json.dumps([connection_data["host"], results])
-            tcp_send(self.target, connection_data["port"], message, connection_data["timeout"],
+            tcp_send(self.command[5:], connection_data["port"], message, connection_data["timeout"],
                      connection_data["reconnect"])
         # get node info
-        elif self.command == "DATA?":
-            tcp_send(self.target, connection_data["port"], "DATAY" + connection_data["host"],
+        elif self.command[:5] == "DATA?":
+            tcp_send(self.command[5:], connection_data["port"], "DATAY" + connection_data["host"],
                      connection_data["timeout"], connection_data["reconnect"])
         # get sensor info
         elif self.command[:6] == "SENSOR" and self.command[6:] == connection_data["host"]:
@@ -279,18 +279,18 @@ class NodeProcessor(threading.Thread):
             for sensor in sensor_list:
                 item = {"item_width": sensor["item_width"], "shelf_width": sensor["shelf_width"]}
                 answer.append(item)
-            tcp_send(self.target, connection_data["port"], json.dumps(answer), connection_data["timeout"],
+            tcp_send(self.command[6:], connection_data["port"], json.dumps(answer), connection_data["timeout"],
                      connection_data["reconnect"])
         # shutdown
         elif self.command[:6] == "SHUTD?" and self.command[6:] == connection_data["host"]:
-            tcp_send(self.target, connection_data["port"], "SHUTDY" + connection_data["host"],
+            tcp_send(self.command[6:], connection_data["port"], "SHUTDY" + connection_data["host"],
                      connection_data["timeout"], connection_data["reconnect"])
             print("Shutting down...")
             os.system("sudo shutdown now")
         # update and reboot
-        elif self.command == "UPDATE":
+        elif self.command[:6] == "UPDATE":
             print("Updates Notification received")
-            tcp_send(self.target, connection_data["port"], connection_data["host"],
+            tcp_send(self.command[6:], connection_data["port"], connection_data["host"],
                      connection_data["timeout"], connection_data["reconnect"])
             print("Confirmation sent")
             time.sleep(5)
@@ -303,8 +303,8 @@ class NodeProcessor(threading.Thread):
             print("Shutting down...")
             os.system("sudo shutdown -r now")
         # test
-        elif self.command == "TEST":
-            tcp_send(self.target, connection_data["port"], json.dumps([connection_data["host"], VERSION]),
+        elif self.command[:4] == "TEST":
+            tcp_send(self.command[4:], connection_data["port"], json.dumps([connection_data["host"], VERSION]),
                      connection_data["timeout"], connection_data["reconnect"])
         # handles JSON Message
         elif is_json(self.command):
@@ -313,7 +313,7 @@ class NodeProcessor(threading.Thread):
                 (node_id, sensor_index) = package[1]
                 if node_id == connection_data["host"]:
                     replace_sensor(int(sensor_index), package[2], self.data_file)
-                    tcp_send(self.target, connection_data["port"], "OK" + connection_data["host"],
+                    tcp_send(self.command[4:], connection_data["port"], "OK" + connection_data["host"],
                              connection_data["timeout"], connection_data["reconnect"])
 
 
