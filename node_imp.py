@@ -253,7 +253,7 @@ class NodeProcessor(threading.Thread):
     def run(self):
         connection_data = get_obj_from_file(self.connection_file)
         if self.command[:6] == "ALIVE?":
-            tcp_send(self.command[5:], connection_data["a_port"], connection_data["host"],
+            tcp_send(self.command[6:], connection_data["a_port"], connection_data["host"],
                      connection_data["timeout"], connection_data["reconnect"])
         elif self.command[:6] == "STOCK?":
             sensor_list = get_obj_from_file(self.data_file)
@@ -310,11 +310,11 @@ class NodeProcessor(threading.Thread):
         # handles JSON Message
         elif is_json(self.command):
             package = json.loads(self.command)
-            if package[0] == "CHANGE":
+            if (package[0])[:6] == "CHANGE":
                 (node_id, sensor_index) = package[1]
                 if node_id == connection_data["host"]:
                     replace_sensor(int(sensor_index), package[2], self.data_file)
-                    tcp_send(self.command[4:], connection_data["port"], "OK" + connection_data["host"],
+                    tcp_send((package[0])[6:], connection_data["port"], "OK" + connection_data["host"],
                              connection_data["timeout"], connection_data["reconnect"])
 
 
