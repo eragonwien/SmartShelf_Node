@@ -9,7 +9,7 @@ import sys
 import os
 import zipfile
 # --------------------DATA----------------------------------------------------------------------------------------------
-VERSION = '1.2.3b'
+VERSION = '1.3.2'
 UPDATES_PATH = ''
 UPDATES_FILENAME = 'updates.zip'
 
@@ -299,9 +299,13 @@ class NodeProcessor(threading.Thread):
             extract_zip(UPDATES_PATH, UPDATES_FILENAME)
             print("Updates received")
             print("Updating...")
-            os.system('sudo cp ./updates/ .')
+            os.system('sudo cp updates/* .')
             print("Shutting down...")
-            #os.system("sudo shutdown -r now")
+            os.system("sudo shutdown -r now")
+        # test
+        elif self.command == "TEST":
+            tcp_send(self.target, connection_data["port"], json.dumps([connection_data["host"], VERSION]),
+                     connection_data["timeout"], connection_data["reconnect"])
         # handles JSON Message
         elif is_json(self.command):
             package = json.loads(self.command)
