@@ -8,8 +8,10 @@ import select
 import sys
 import os
 import zipfile
+import multiprocessing
+
 # --------------------DATA----------------------------------------------------------------------------------------------
-VERSION = '1.3.2'
+VERSION = '1.3.4'
 UPDATES_PATH = ''
 UPDATES_FILENAME = 'updates.zip'
 
@@ -61,6 +63,12 @@ def create_new_pins(pin_file: str):
     set_obj_in_file(pin_list, pin_file)
 
 
+def create_value_file_from_pin_file(pin_file: str, value_file: str):
+    pin_list = get_obj_from_file(pin_file)
+    value_list = [-1 for pin in pin_list]
+    set_obj_in_file(value_list, value_file)
+
+
 def create_data_from_pin_file(pin_file: str, datafile: str):
     if not is_file_exist(datafile):
         pin_list = get_obj_from_file(pin_file)
@@ -82,6 +90,8 @@ def create_connection_data(connection_file, host, port, a_port, buffersize, max_
 def extract_zip(file_path: str, zip_name: str):
     with zipfile.ZipFile(zip_name, 'r') as target_zip:
         target_zip.extractall(file_path)
+
+
 # --------------------TCP-----------------------------------------------------------------------------------------------
 
 
@@ -109,7 +119,7 @@ def tcp_file_receive(file_path: str, host: str, port, buffersize, timeout, max_c
     tcp.listen(max_client)
     with open(file_path, 'wb') as received_file:
         try:
-            while True:
+            for i in range(max_client):
                 connection, address = tcp.accept()
                 data = connection.recv(buffersize)
                 while data:
@@ -179,42 +189,50 @@ def broadcast_message(port, message):
 
 
 # --------------------SONIC---------------------------------------------------------------------------------------------
-def get_sonic_value(trigger: int, echo: int) -> int:
+def get_sonic_value(echo: int, trigger: int) -> int:
     return round(random.uniform(echo, trigger), 0)
 
 
 def calculate_stock_from_distance(distance: int, item_width: int, shelf_width: int):
+    print(distance, item_width, shelf_width)
     try:
-        if item_width <= 0:
-            return 0
+        if item_width <= 0 or distance <= 0 or shelf_width <= 0:
+            return -1
         return round((shelf_width - distance) / item_width)
     except ArithmeticError:
-        return None
+        return -1
+
+
+class SonicCalculator(multiprocessing.Process):
+    def __init__(self, sonic_queue: multiprocessing.SimpleQueue, results_queue: multiprocessing.SimpleQueue):
+        multiprocessing.Process.__init__(self)
+        self.queue = sonic_queue
+        self.results = results_queue
+
+    def run(self):
+        while 1:
+            value = self.queue.get()
+            if not value:
+                break
+            [index, echo, trigger] = value
+            result = get_sonic_value(int(echo), int(trigger))
+            self.results.put((index, result))
 
 
 # this thread calculates sonic value from sensor
 class SonicThread(threading.Thread):
-    def __init__(self, sensor_index: int, results: list, data_file: str):
+    def __init__(self, working_queue: multiprocessing.SimpleQueue):
         threading.Thread.__init__(self)
-        self.sensor_index = int(sensor_index)
-        self.results = results
-        self.data_file = data_file
-        sensor_list = get_obj_from_file(data_file)
-        self.sensor = sensor_list[sensor_index]
-        self.sensor_in = self.sensor["in"]
-        self.sensor_out = self.sensor["out"]
-        self.daemon = 1
-        self.terminated = 0
-        self.start()
+        self.working_queue = working_queue
+        self.running = True
 
     def run(self):
-        sonic_value = get_sonic_value(int(self.sensor_in), int(self.sensor_out))
-        result = calculate_stock_from_distance(sonic_value, int(self.sensor["item_width"]),
-                                               int(self.sensor["shelf_width"]))
-        if result:
-            self.results[self.sensor_index] = result
-        else:
-            self.results[self.sensor_index] = "Arithmetic Error"
+        while self.running:
+            time.sleep(0.5)
+            self.working_queue.put('SONICS')
+
+    def kill_sonic(self):
+        self.running = False
 
 
 # --------------------ETC-----------------------------------------------------------------------------------------------
@@ -237,89 +255,11 @@ def replace_sensor(sensor_index: int, new_sensor: dict, data_file: str):
             sensor[key] = new_sensor[key]
     set_obj_in_file(sensor_list, data_file)
 
+
 # --------------------------THREAD---------------------------------------------------------------------------------------
 
-
-class NodeProcessor(threading.Thread):
-    def __init__(self, command, target, connection_file, data_file):
-        threading.Thread.__init__(self)
-        self.command = command
-        self.target = target
-        self.connection_file = connection_file
-        self.data_file = data_file
-        self.daemon = 1
-        self.start()
-
-    def run(self):
-        connection_data = get_obj_from_file(self.connection_file)
-        if self.command[:6] == "ALIVE?":
-            tcp_send(self.command[6:], connection_data["a_port"], connection_data["host"],
-                     connection_data["timeout"], connection_data["reconnect"])
-        elif self.command[:6] == "STOCK?":
-            sensor_list = get_obj_from_file(self.data_file)
-            results = ["Timeout" for i in range(len(sensor_list))]
-            for i in range(len(sensor_list)):
-                SonicThread(i, results, self.data_file)
-            start = time.time()
-            wait_time = 2  # waits 2 seconds
-            while time.time() < (start + wait_time):
-                pass
-            # sends results
-            message = json.dumps([connection_data["host"], results])
-            tcp_send(self.command[6:], connection_data["port"], message, connection_data["timeout"],
-                     connection_data["reconnect"])
-        # get node info
-        elif self.command[:5] == "DATA?":
-            tcp_send(self.command[5:], connection_data["port"], "DATAY" + connection_data["host"],
-                     connection_data["timeout"], connection_data["reconnect"])
-        # get sensor info
-        elif self.command[:6] == "SENSOR" and self.command[6:] == connection_data["host"]:
-            answer = []
-            sensor_list = get_obj_from_file(self.data_file)
-            for sensor in sensor_list:
-                item = {"item_width": sensor["item_width"], "shelf_width": sensor["shelf_width"]}
-                answer.append(item)
-            tcp_send(self.command[6:], connection_data["port"], json.dumps(answer), connection_data["timeout"],
-                     connection_data["reconnect"])
-        # shutdown
-        elif self.command[:6] == "SHUTD?" and self.command[6:] == connection_data["host"]:
-            tcp_send(self.command[6:], connection_data["port"], "SHUTDY" + connection_data["host"],
-                     connection_data["timeout"], connection_data["reconnect"])
-            print("Shutting down...")
-            os.system("sudo shutdown now")
-        # update and reboot
-        elif self.command[:6] == "UPDATE":
-            print("Updates Notification received")
-            tcp_send(self.command[6:], connection_data["port"], connection_data["host"],
-                     connection_data["timeout"], connection_data["reconnect"])
-            print("Confirmation sent")
-            time.sleep(5)
-            tcp_file_receive(UPDATES_FILENAME, connection_data["host"], connection_data["port"],
-                             connection_data["buffersize"], connection_data["timeout"], connection_data["max_client"])
-            extract_zip(UPDATES_PATH, UPDATES_FILENAME)
-            print("Updates received")
-            print("Updating...")
-            os.system('sudo cp updates/* .')
-            print("Shutting down...")
-            os.system("sudo shutdown -r now")
-        # test
-        elif self.command[:4] == "TEST":
-            print("TEST")
-            tcp_send(self.command[4:], connection_data["port"], json.dumps([connection_data["host"], VERSION]),
-                     connection_data["timeout"], connection_data["reconnect"])
-        # handles JSON Message
-        elif is_json(self.command):
-            package = json.loads(self.command)
-            if (package[0])[:6] == "CHANGE":
-                (node_id, sensor_index) = package[1]
-                if node_id == connection_data["host"]:
-                    replace_sensor(int(sensor_index), package[2], self.data_file)
-                    tcp_send((package[0])[6:], connection_data["port"], "OK" + connection_data["host"],
-                             connection_data["timeout"], connection_data["reconnect"])
-
-
-# this func receives multiple UDP message then fowards it to processor
-def udp_select_receive(connection_file, data_file):
+# this func receives multiple UDP message then forwards it to processor
+def udp_select_receive(connection_file: str, working_queue: multiprocessing.Queue):
     connection_data = get_obj_from_file(connection_file)
     server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -328,7 +268,8 @@ def udp_select_receive(connection_file, data_file):
     server.bind(('', connection_data["port"]))
     server2.bind(('', connection_data["a_port"]))
     server_input = [server, server2]
-    while True:
+    running = True
+    while running:
         input_ready, output_ready, except_ready = select.select(server_input, [], [])
         if not (input_ready or output_ready or except_ready):
             server.close()
@@ -336,5 +277,134 @@ def udp_select_receive(connection_file, data_file):
         for s in input_ready:
             if s == server or s == server2:
                 data, address = s.recvfrom(connection_data["buffersize"])
-                print("Source :", address[0], " Message :", data.decode())
-                NodeProcessor(data.decode(), address[0], connection_file, data_file)
+                # print("Source :", address[0], " Message :", data.decode())
+                message = data.decode()
+                working_queue.put(message)
+                if message[:6] == 'UPDATE':
+                    running = False
+                    # NodeProcessor(data.decode(), address[0], connection_file, data_file)
+
+
+class BackgroundProcess(multiprocessing.Process):
+    def __init__(self, connection_file: str, data_file: str, value_file: str,
+                 working_queue: multiprocessing.SimpleQueue,
+                 lock: multiprocessing.Lock):
+        multiprocessing.Process.__init__(self)
+        self.working_queue = working_queue
+        self.lock = lock
+        self.connection_file = connection_file
+        self.data_file = data_file
+        self.value_file = value_file
+
+    def run(self):
+        working = True
+        while working:
+            cmd = self.working_queue.get()
+            job = ''
+            target = ''
+            if not is_json(cmd):
+                job = cmd[:6]
+                target = cmd[6:]
+            if job != 'SONICS' and job != '':
+                print('Job:', job, 'Source:', target)
+            connection_data = get_obj_from_file(self.connection_file)
+
+            # CALCULATING WORK
+            if job == 'SONICS':
+                # init
+                data = get_obj_from_file(self.data_file)
+                sonic_queue = multiprocessing.SimpleQueue()
+                result_queue = multiprocessing.SimpleQueue()
+                sonic = SonicCalculator(sonic_queue, result_queue)
+                # calculating
+                for i in range(len(data)):
+                    sensor = data[i]
+                    sonic_queue.put([i, int(sensor['in']), int(sensor['out'])])
+                sonic_queue.put(None)
+                sonic.start()
+                sonic.join()
+                # save
+                value_list = get_obj_from_file(self.value_file)
+                while not result_queue.empty():
+                    (index, result) = result_queue.get()
+                    value_list[index] = result
+
+                with self.lock:
+                    set_obj_in_file(value_list, self.value_file)
+
+            # ONLINE CHECKING WORK
+            if job == "ALIVE?":
+                tcp_send(target, connection_data["a_port"], connection_data["host"],
+                         connection_data["timeout"], connection_data["reconnect"])
+
+            # GET CALCULATION RESULTS WORK
+            if job == "STOCK?":
+                sensor_list = get_obj_from_file(self.data_file)
+                value_list = get_obj_from_file(self.value_file)
+                results = ["Timeout" for i in range(len(value_list))]
+                for i in range(len(value_list)):
+                    sensor = sensor_list[i]
+                    result = calculate_stock_from_distance(
+                        int(value_list[i]), int(sensor['item_width']), int(sensor['shelf_width']))
+                    if result == -1:
+                        results[i] = "Arithmetic Error"
+                    else:
+                        results[i] = result
+                # sends results
+                message = json.dumps([connection_data["host"], results])
+                tcp_send(target, connection_data["port"], message, connection_data["timeout"],
+                         connection_data["reconnect"])
+
+            # GET INFO WORK
+            elif job == "DATAS?":
+                tcp_send(target, connection_data["port"], "DATASY" + connection_data["host"],
+                         connection_data["timeout"], connection_data["reconnect"])
+
+            # GET SENSOR INFO WORK
+            elif job == "SENSOR" and target == connection_data["host"]:
+                answer = []
+                sensor_list = get_obj_from_file(self.data_file)
+                for sensor in sensor_list:
+                    item = {"item_width": sensor["item_width"], "shelf_width": sensor["shelf_width"]}
+                    answer.append(item)
+                tcp_send(target, connection_data["port"], json.dumps(answer), connection_data["timeout"],
+                         connection_data["reconnect"])
+
+            # FORCE SHUTDOWN WORK
+            elif job == "SHUTD?" and target == connection_data["host"]:
+                tcp_send(target, connection_data["port"], "SHUTDY" + connection_data["host"],
+                         connection_data["timeout"], connection_data["reconnect"])
+                print("Shutting down...")
+                os.system("sudo shutdown now")
+
+            # UPDATE WORK
+            elif job == "UPDATE":
+                print("Updates Notification received")
+                tcp_send(target, connection_data["port"], connection_data["host"],
+                         connection_data["timeout"], connection_data["reconnect"])
+                print("Confirmation sent")
+                time.sleep(5)
+                tcp_file_receive(UPDATES_FILENAME, connection_data["host"], connection_data["port"],
+                                 connection_data["buffersize"], connection_data["timeout"],
+                                 connection_data["max_client"])
+                extract_zip(UPDATES_PATH, UPDATES_FILENAME)
+                print("Updates received")
+                print("Updating...")
+                os.system('sudo cp updates/* .')
+                working = False
+                print('Terminating working processes...')
+
+            # VERSION TEST WORK
+            elif job == "TESTST":
+                tcp_send(target, connection_data["port"], json.dumps([connection_data["host"], VERSION]),
+                         connection_data["timeout"], connection_data["reconnect"])
+
+            # HANDLING JSON WORK
+            elif is_json(cmd):
+                package = json.loads(cmd)
+                if (package[0])[:6] == "CHANGE":
+                    (node_id, sensor_index) = package[1]
+                    if node_id == connection_data["host"]:
+                        replace_sensor(int(sensor_index), package[2], self.data_file)
+                        tcp_send((package[0])[6:], connection_data["port"], "OK" + connection_data["host"],
+                                 connection_data["timeout"], connection_data["reconnect"])
