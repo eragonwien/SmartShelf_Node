@@ -411,5 +411,23 @@ class BackgroundProcess(multiprocessing.Process):
                         answer.append(item)
                     tcp_send(package[2], connection_data['port'], str(json.dumps(answer)), connection_data['timeout'],
                              connection_data['reconnect'])
+                # UPDATE WORK
+                elif package[0] == "UPDATE":
+                    print("Updates Notification received")
+                    if connection_data['host'] in package[1]:
+                        print("This node is updating ...")
+                        tcp_send(target, connection_data["port"], connection_data["host"],
+                                 connection_data["timeout"], connection_data["reconnect"])
+                        print("Confirmation sent")
+                        time.sleep(5)
+                        tcp_file_receive(UPDATES_FILENAME, connection_data["host"], connection_data["port"],
+                                         connection_data["buffersize"], connection_data["timeout"],
+                                         connection_data["max_client"])
+                        extract_zip(UPDATES_PATH, UPDATES_FILENAME)
+                        print("Updates received")
+                        print("Updating...")
+                        os.system('sudo cp updates/* .')
+                        working = False
+                        print('Terminating working processes...')
 
 
