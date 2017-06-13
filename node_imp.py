@@ -280,9 +280,11 @@ def udp_select_receive(connection_file: str, working_queue: multiprocessing.Queu
                 # print("Source :", address[0], " Message :", data.decode())
                 message = data.decode()
                 working_queue.put(message)
-                if message[:6] == 'UPDATE':
-                    running = False
-                    # NodeProcessor(data.decode(), address[0], connection_file, data_file)
+                if is_json(message):
+                    msg_cmd = json.loads(message)
+                    running = (msg_cmd[0] != "UPDATE")
+                    break
+    print("UDP Receiver is closed")
 
 
 class BackgroundProcess(multiprocessing.Process):
@@ -369,23 +371,6 @@ class BackgroundProcess(multiprocessing.Process):
                 print("Shutting down...")
                 os.system("sudo shutdown now")
 
-            # UPDATE WORK
-            elif job == "UPDATE":
-                print("Updates Notification received")
-                tcp_send(target, connection_data["port"], connection_data["host"],
-                         connection_data["timeout"], connection_data["reconnect"])
-                print("Confirmation sent")
-                time.sleep(5)
-                tcp_file_receive(UPDATES_FILENAME, connection_data["host"], connection_data["port"],
-                                 connection_data["buffersize"], connection_data["timeout"],
-                                 connection_data["max_client"])
-                extract_zip(UPDATES_PATH, UPDATES_FILENAME)
-                print("Updates received")
-                print("Updating...")
-                os.system('sudo cp updates/* .')
-                working = False
-                print('Terminating working processes...')
-
             # VERSION TEST WORK
             elif job == "TESTST":
                 print(target, connection_data['port'])
@@ -429,5 +414,4 @@ class BackgroundProcess(multiprocessing.Process):
                         os.system('sudo cp updates/* .')
                         working = False
                         print('Terminating working processes...')
-
 

@@ -56,7 +56,7 @@ if __name__ == '__main__':
 
     # RECEIVES MESSAGE
     node_imp.udp_select_receive(CONNECTION_PATH, working_queue)
-
+    print("reached here")
     # SYNC END
     sonic.kill_sonic()
     background_process.join()
