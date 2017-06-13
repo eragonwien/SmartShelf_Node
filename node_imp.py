@@ -11,7 +11,7 @@ import zipfile
 import multiprocessing
 
 # --------------------DATA----------------------------------------------------------------------------------------------
-VERSION = '1.3.4'
+VERSION = 'v1.3'
 UPDATES_PATH = ''
 UPDATES_FILENAME = 'updates.zip'
 
@@ -334,7 +334,7 @@ class BackgroundProcess(multiprocessing.Process):
 
             # ONLINE CHECKING WORK
             if job == "ALIVE?":
-                tcp_send(target, connection_data["a_port"], connection_data["host"],
+                tcp_send(target, VERSION + connection_data["a_port"], connection_data["host"],
                          connection_data["timeout"], connection_data["reconnect"])
 
             # GET CALCULATION RESULTS WORK
@@ -406,5 +406,6 @@ class BackgroundProcess(multiprocessing.Process):
                     (node_id, sensor_index) = package[1]
                     if node_id == connection_data["host"]:
                         replace_sensor(int(sensor_index), package[2], self.data_file)
+                        print((package[0])[6:])
                         tcp_send((package[0])[6:], connection_data["port"], "OK" + connection_data["host"],
                                  connection_data["timeout"], connection_data["reconnect"])
