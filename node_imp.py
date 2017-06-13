@@ -334,7 +334,7 @@ class BackgroundProcess(multiprocessing.Process):
 
             # ONLINE CHECKING WORK
             if job == "ALIVE?":
-                tcp_send(target, VERSION + connection_data["a_port"], connection_data["host"],
+                tcp_send(target, connection_data["a_port"], VERSION + connection_data["host"],
                          connection_data["timeout"], connection_data["reconnect"])
 
             # GET CALCULATION RESULTS WORK
