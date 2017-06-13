@@ -416,7 +416,7 @@ class BackgroundProcess(multiprocessing.Process):
                     print("Updates Notification received")
                     if connection_data['host'] in package[1]:
                         print("This node is updating ...")
-                        tcp_send(target, connection_data["port"], connection_data["host"],
+                        tcp_send(package[2], connection_data["port"], connection_data["host"],
                                  connection_data["timeout"], connection_data["reconnect"])
                         print("Confirmation sent")
                         time.sleep(5)
