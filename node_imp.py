@@ -367,6 +367,7 @@ class BackgroundProcess(multiprocessing.Process):
                 for sensor in sensor_list:
                     item = {"item_width": sensor["item_width"], "shelf_width": sensor["shelf_width"]}
                     answer.append(item)
+                tcp_send(target, connection_data['port'], str(json.dumps(answer)), connection_data['timeout'], connection_data['reconnect'])
                 #tcp_send(target, connection_data["port"], json.dumps(answer), connection_data["timeout"],
                  #        connection_data["reconnect"])
 
