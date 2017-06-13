@@ -367,9 +367,8 @@ class BackgroundProcess(multiprocessing.Process):
                 for sensor in sensor_list:
                     item = {"item_width": sensor["item_width"], "shelf_width": sensor["shelf_width"]}
                     answer.append(item)
+                print(target, connection_data['port'])
                 tcp_send(target, connection_data['port'], str(json.dumps(answer)), connection_data['timeout'], connection_data['reconnect'])
-                #tcp_send(target, connection_data["port"], json.dumps(answer), connection_data["timeout"],
-                 #        connection_data["reconnect"])
 
             # FORCE SHUTDOWN WORK
             elif job == "SHUTD?" and target == connection_data["host"]:
@@ -397,6 +396,7 @@ class BackgroundProcess(multiprocessing.Process):
 
             # VERSION TEST WORK
             elif job == "TESTST":
+                print(target, connection_data['port'])
                 tcp_send(target, connection_data["port"], json.dumps([connection_data["host"], VERSION]),
                          connection_data["timeout"], connection_data["reconnect"])
 
