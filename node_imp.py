@@ -305,6 +305,8 @@ class BackgroundProcess(multiprocessing.Process):
             if not is_json(cmd):
                 job = cmd[:6]
                 target = cmd[6:]
+            else:
+                print(cmd)
             if job != 'SONICS' and job != '':
                 print('Job:', job, 'Source:', target)
             connection_data = get_obj_from_file(self.connection_file)
@@ -360,16 +362,6 @@ class BackgroundProcess(multiprocessing.Process):
                 tcp_send(target, connection_data["port"], "DATASY" + connection_data["host"],
                          connection_data["timeout"], connection_data["reconnect"])
 
-            # GET SENSOR INFO WORK
-            elif job == "SENSOR" and target == connection_data["host"]:
-                answer = []
-                sensor_list = get_obj_from_file(self.data_file)
-                for sensor in sensor_list:
-                    item = {"item_width": sensor["item_width"], "shelf_width": sensor["shelf_width"]}
-                    answer.append(item)
-                print(target, connection_data['port'])
-                tcp_send(target, connection_data['port'], str(json.dumps(answer)), connection_data['timeout'], connection_data['reconnect'])
-
             # FORCE SHUTDOWN WORK
             elif job == "SHUTD?" and target == connection_data["host"]:
                 tcp_send(target, connection_data["port"], "SHUTDY" + connection_data["host"],
@@ -409,3 +401,15 @@ class BackgroundProcess(multiprocessing.Process):
                         replace_sensor(int(sensor_index), package[2], self.data_file)
                         tcp_send((package[0])[6:], connection_data["port"], "OK" + connection_data["host"],
                                  connection_data["timeout"], connection_data["reconnect"])
+
+                # GET SENSOR INFO WORK
+                elif package[0] == 'SENSOR' and package[1] == connection_data['host']:
+                    answer = []
+                    sensor_list = get_obj_from_file(self.data_file)
+                    for sensor in sensor_list:
+                        item = {"item_width": sensor["item_width"], "shelf_width": sensor["shelf_width"]}
+                        answer.append(item)
+                    tcp_send(package[2], connection_data['port'], str(json.dumps(answer)), connection_data['timeout'],
+                             connection_data['reconnect'])
+
+
