@@ -12,21 +12,21 @@ PORT = 51212
 A_PORT = 51213
 BUFFERSIZE = 2048
 MAX_CLIENT = 10
-DATA_PATH = "data.txt"
-CONNECTION_PATH = "connection.txt"
-PIN_PATH = "pin.txt"
-SONIC_PATH = "sonic.txt"
+DATA_PATH = 'data.txt'
+CONNECTION_PATH = 'connection.txt'
+PIN_PATH = 'pin.txt'
+SONIC_PATH = 'sonic.txt'
 RECONNECTION_TIMES = 3
 TIMEOUT = 3
 ALIVE_INTERVAL = 10
 
 if __name__ == '__main__':
-    print("NODE Nr.", HOST)
+    print('NODE Nr.', HOST)
 
     # CHECK CORE COMPONENTS
     # look for pin settings in directory
     if not node_imp.is_file_exist(PIN_PATH):
-        print("No Data file found. System exits")
+        print('No Data file found. System exits')
         sys.exit()
 
     # INITIALIZE COMPONENTS
@@ -56,7 +56,6 @@ if __name__ == '__main__':
 
     # RECEIVES MESSAGE
     node_imp.udp_select_receive(CONNECTION_PATH, working_queue)
-    print("reached here")
     # SYNC END
     sonic.kill_sonic()
     background_process.join()
