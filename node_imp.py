@@ -235,7 +235,7 @@ class SonicThread(threading.Thread):
 
     def run(self):
         while self.running:
-            time.sleep(0.5)
+            time.sleep(1)
             self.working_queue.put('SONICS')
 
     def kill_sonic(self):
