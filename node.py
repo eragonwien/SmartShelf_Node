@@ -22,7 +22,8 @@ ALIVE_INTERVAL = 10
 
 if __name__ == '__main__':
     print('NODE Nr.', HOST)
-
+    if not node_imp.is_gpio_exist():
+        print('GPIO not found. Simulating sensors by generaing random numbers.')
     # CHECK CORE COMPONENTS
     # look for pin settings in directory
     if not node_imp.is_file_exist(PIN_PATH):

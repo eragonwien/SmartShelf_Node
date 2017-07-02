@@ -20,6 +20,14 @@ def is_file_exist(file_path):
     return os.path.isfile(file_path)
 
 
+def is_gpio_exist():
+    try:
+        import RPi.GPIO
+        return True
+    except ImportError:
+        return False
+
+
 def is_json(obj) -> bool:
     try:
         json.loads(obj)
@@ -281,8 +289,12 @@ def udp_select_receive(connection_file: str, working_queue: multiprocessing.Queu
                 working_queue.put(message)
                 if is_json(message):
                     msg_cmd = json.loads(message)
-                    running = (msg_cmd[0] != 'UPDATE')
+                    running = not(msg_cmd[0] == 'UPDATE')
                     break
+                else:
+                    if message[:6] == 'SHUTD?':
+                        running = False
+                        break
     print('UDP Receiver is closed')
 
 
@@ -367,8 +379,10 @@ class BackgroundProcess(multiprocessing.Process):
             elif job == 'SHUTD?' and target == connection_data['host']:
                 tcp_send(target, connection_data['port'], 'SHUTDY' + connection_data['host'],
                          connection_data['timeout'], connection_data['reconnect'])
-                print('Shutting down...')
-                os.system('sudo shutdown now')
+                working = False
+                print('Terminating working processes...')
+                # print('Shutting down...')
+                # os.system('sudo shutdown now')
 
             # VERSION TEST WORK
             elif job == 'TESTST':
