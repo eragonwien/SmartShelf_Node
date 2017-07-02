@@ -1,9 +1,12 @@
 import random
 import time
+import sys
 
 
 # set pin
 def get_sonic_value(echo, trigger):
+    return round(random.uniform(echo, trigger), 0)
+    '''
     try:
         import RPi.GPIO as GPIO
     except ImportError:
@@ -28,8 +31,8 @@ def get_sonic_value(echo, trigger):
         stop = time.time()
         return (stop - start) * 17000
     except:
-        pass
+        print("Unexpected error:", sys.exc_info()[0])
     finally:
         GPIO.cleanup()
 
-
+    '''
