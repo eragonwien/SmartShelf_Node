@@ -6,6 +6,10 @@ import time
 def get_sonic_value(echo, trigger):
     try:
         import RPi.GPIO as GPIO
+    except ImportError:
+        # if no device is found. a random number is generated for testing
+        return round(random.uniform(echo, trigger), 0)
+    try:
         GPIO.setmode(GPIO.BOARD)
         GPIO.setup(trigger, GPIO.OUT)
         GPIO.output(trigger, 0)
@@ -22,9 +26,10 @@ def get_sonic_value(echo, trigger):
         while GPIO.input(echo) == 1 and (time.time() - timer_start) < 1:
             pass
         stop = time.time()
-        GPIO.cleanup()
         return (stop - start) * 17000
-    except ImportError:
-        # if no device is found. a random number is generated for testing
-        return round(random.uniform(echo, trigger), 0)
+    except:
+        pass
+    finally:
+        GPIO.cleanup()
+
 
