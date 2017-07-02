@@ -11,7 +11,7 @@ def get_sonic_value(echo, trigger):
         GPIO.output(trigger, 0)
         GPIO.setup(echo, GPIO.IN)
         time.sleep(0.1)
-        print("Start sonic measure...")
+        # print("Start sonic measure...")
         GPIO.output(trigger, 1)
         time.sleep(0.00001)
         GPIO.output(trigger, 0)
