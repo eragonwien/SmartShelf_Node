@@ -15,11 +15,11 @@ def get_sonic_value(echo, trigger):
         GPIO.output(trigger, 1)
         time.sleep(0.00001)
         GPIO.output(trigger, 0)
-
-        while GPIO.input(echo) == 0:
+        timer_start = time.time()
+        while GPIO.input(echo) == 0 and (time.time() - timer_start) < 1:
             pass
         start = time.time()
-        while GPIO.input(echo) == 1:
+        while GPIO.input(echo) == 1 and (time.time() - timer_start) < 1:
             pass
         stop = time.time()
 
