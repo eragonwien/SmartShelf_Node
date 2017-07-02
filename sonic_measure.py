@@ -11,6 +11,7 @@ def get_sonic_value(echo, trigger):
         # if no device is found. a random number is generated for testing
         return round(random.uniform(echo, trigger), 0)
     timer_start = time.time()
+    GPIO.setwarnings(False)
     GPIO.setmode(GPIO.BOARD)
     GPIO.setup(trigger, GPIO.OUT)
     GPIO.output(trigger, 0)
