@@ -22,7 +22,7 @@ def get_sonic_value(echo, trigger):
         while GPIO.input(echo) == 1 and (time.time() - timer_start) < 1:
             pass
         stop = time.time()
-
+        GPIO.cleanup()
         return (stop - start) * 17000
     except ImportError:
         # if no device is found. a random number is generated for testing
