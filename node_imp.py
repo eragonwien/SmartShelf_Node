@@ -3,7 +3,6 @@ import os.path
 import json
 import threading
 import time
-import random
 import select
 import sys
 import os
@@ -11,7 +10,7 @@ import zipfile
 import multiprocessing
 import sonic_measure
 # --------------------DATA----------------------------------------------------------------------------------------------
-VERSION = 'v1.4'
+VERSION = 'v1.6'
 UPDATES_PATH = ''
 UPDATES_FILENAME = 'updates.zip'
 
@@ -82,7 +81,7 @@ def create_data_from_pin_file(pin_file: str, datafile: str):
         pin_list = get_obj_from_file(pin_file)
         sensor_list = []
         for pin_dual in pin_list:
-            sensor = {'in': pin_dual[0], 'out': pin_dual[1], 'item_width': 0, 'shelf_width': 0}
+            sensor = {'in': pin_dual[1], 'out': pin_dual[0], 'item_width': 0, 'shelf_width': 0}
             sensor_list.append(sensor)
         node = sensor_list
         set_obj_in_file(node, datafile)
@@ -201,13 +200,17 @@ def broadcast_message(port, message):
 
 # --------------------SONIC---------------------------------------------------------------------------------------------
 def calculate_stock_from_distance(distance: int, item_width: int, shelf_width: int):
-    print(distance, item_width, shelf_width)
+    print('Distance :', str(distance),'cm', 'item:', str(item_width), 'cm', str(shelf_width), 'cm')
     try:
-        if item_width <= 0 or distance <= 0 or shelf_width <= 0:
-            return -1
+        if distance < 0:
+            return distance
+        elif item_width <= 0 or shelf_width <= 0:
+            return -3
+        elif item_width > shelf_width:
+            return -4           
         return round((shelf_width - distance) / item_width)
     except ArithmeticError:
-        return -1
+        return -5
 
 
 class SonicCalculator(multiprocessing.Process):
@@ -361,10 +364,7 @@ class BackgroundProcess(multiprocessing.Process):
                     sensor = sensor_list[i]
                     result = calculate_stock_from_distance(
                         int(value_list[i]), int(sensor['item_width']), int(sensor['shelf_width']))
-                    if result == -1:
-                        results[i] = 'Arithmetic Error'
-                    else:
-                        results[i] = result
+                    results[i] = result
                 # sends results
                 message = json.dumps([connection_data['host'], results])
                 tcp_send(target, connection_data['port'], message, connection_data['timeout'],
@@ -381,8 +381,8 @@ class BackgroundProcess(multiprocessing.Process):
                          connection_data['timeout'], connection_data['reconnect'])
                 working = False
                 print('Terminating working processes...')
-                # print('Shutting down...')
-                # os.system('sudo shutdown now')
+                print('Shutting down...')
+                os.system('sudo shutdown -h 0.5')
 
             # VERSION TEST WORK
             elif job == 'TESTST':
